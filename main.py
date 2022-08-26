@@ -10,45 +10,67 @@ app = Flask(__name__)
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = 'level-research-356200-8abdeae2d5d5.json'
 
 @app.route('/')
-def form():
+def homepage():
     return render_template('form.html')
 
-@app.route('/data/', methods = ['POST'])
+@app.route('/api', methods=['POST'])
+def form():
+    if request.method == 'POST':
+       # print(type(request.get_json()))
+        response_dict = request.get_json()
+        df = pd.DataFrame([response_dict])
+
+        client = bigquery.Client()
+
+        query = f"""
+        SELECT
+        *
+        FROM
+        ML.PREDICT(MODEL `heart_disease.heart_random_forest`,
+            (
+            SELECT
+            {df.iloc[0]['age']} AS age, '{df.iloc[0]['sex']}' as sex, {df.iloc[0]['cp']} as cp, {df.iloc[0]['trestbps']} as trestbps
+        ,   {df.iloc[0]['chol']} as chol, {df.iloc[0]['fbs']} as fbs, {df.iloc[0]['restecg']} as restecg, {df.iloc[0]['thalach']} as thalach, {df.iloc[0]['exang']} as exang
+        ,   {df.iloc[0]['oldpeak']} as oldpeak, {df.iloc[0]['slope']} as slope, {df.iloc[0]['ca']} as ca, {df.iloc[0]['thal']} as thal)
+        )
+        """
+
+        job = client.query(query)
+        result = pd.DataFrame([row for row in job.result()])
+
+        prediction = {'prediction':result[0][0]['predicted_target']}
+
+        return prediction
+
+@app.route('/data/', methods = ['GET','POST'])
 def data():
     if request.method == 'POST':
         form_data = request.form
         
-        print(form_data)
-        #df = pd.read_json('data/nested_list.json')
-        # #dict_train = json.load(form_data)
-        # df = pd.DataFrame(list(form_data.items(1)))
-        # #,columns = ['age','sex','cp','trestbps','chol','fbs','restcg','thalach','exang','oldpeak','slope','ca','thal']
-        # df_T = df.T
-        # df_T.columns = ['age','sex','cp','trestbps','chol','fbs','restcg','thalach','exang','oldpeak','slope','ca','thal']
-        # print(df)
+        df = pd.DataFrame(list(form_data.items(1)))
+        df_T = df.T
+        df_T.columns = ['age','sex','cp','trestbps','chol','fbs','restcg','thalach','exang','oldpeak','slope','ca','thal']
 
-        # print(df.columns)
-        # client = bigquery.Client()
-        # #dataset = bigquery.Dataset('level-research-356200.heart_disease')
-        # #dataset = client.create_dataset(dataset, timeout=30)
-        # dataset_ref = client.dataset('heart_disease')
-        # table_ref = dataset_ref.table('input')
-        # print(table_ref)
-        # client.load_table_from_dataframe(df, table_ref)
+        client = bigquery.Client()
 
-        query = """
-        ML.PREDICT(MODEL `level-research-356200.heart_disease.heart_random_forest`,
-        TABLE `level-research-356200.heart_disease.input`)))
+        query = f"""
+        SELECT
+        *
+        FROM
+        ML.PREDICT(MODEL `heart_disease.heart_random_forest`,
+            (
+            SELECT
+            {df.iloc[0][1]} AS age, '{df.iloc[1][1]}' as sex, {df.iloc[2][1]} as cp, {df.iloc[3][1]} as trestbps
+        ,   {df.iloc[4][1]} as chol, {df.iloc[5][1]} as fbs, {df.iloc[6][1]} as restecg, {df.iloc[7][1]} as thalach, {df.iloc[8][1]} as exang
+        ,   {df.iloc[9][1]} as oldpeak, {df.iloc[10][1]} as slope, {df.iloc[11][1]} as ca, {df.iloc[12][1]} as thal)
+        )
         """
 
-        #query_res = client.query(query)
+        job = client.query(query)
+        result = pd.DataFrame([row for row in job.result()])
 
-        # for row in query_res:
-        #     print(row)
-# converting json dataset from dictionary to dataframe
-        #to_predict = pd.DataFrame.from_dict(dict_train, orient='index'))
+        prediction = {'prediction':result[0][0]['predicted_target']}
 
-        prediction = {'prediction':'No Heart Disease'}
         return render_template('data.html',form_data = prediction)
 
 if __name__ == '__main__':
